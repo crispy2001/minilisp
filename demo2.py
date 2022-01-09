@@ -1,17 +1,5 @@
 #!/usr/bin/python3
-
-def parseTree(code):
-	# split tokens to recurrence
-	tokens = code.replace('(', ' ( ').replace(')', ' ) ').split()
-	tree_token = []
-	for token in tokens:
-		if token not in ['(', ')']:
-			tree_token.append(f'"{token}"')
-		else:
-			tree_token.append(token)
-		if token != '(':
-			tree_token.append(',')
-	return eval(''.join(['(', *tree_token, ')']))
+import sys, os
 
 # check is ID or not
 def isID(s):
@@ -26,6 +14,7 @@ def isID(s):
 	return True
 
 
+# the class to all features which defined by question
 class Function:
 	def __init__(self, name = '', func = None, arg_type = None, n_args=''):
 		self.name = name
@@ -40,8 +29,6 @@ class Function:
 	
 	def _check_args(self, args):
 		n_args = len(args)
-		assert eval(f'{n_args} {self.n_args}'), (
-			f' expect number of arguments {self.n_args}, got {n_args}')
 		if self.arg_type is not None:
 			if self.arg_type == 'same':
 				arg_type = type(args[0])
@@ -53,61 +40,57 @@ class Function:
 					t1 = getattr(arg_type, '__name__', arg_type).lower()
 					t2 = getattr(type(arg), '__name__', type(arg)).lower()
 
-def evaluate(statement, oper, level = 0):
+
+def evalu(statement, oper, level = 0):
 	if isinstance(statement, tuple):
 
 		primary = statement[0]
 		
-		if primary == 'define':
-			# Define a variable in oper
-			_, name, value = statement
-			if type(value) is tuple:
-
-				temp_oper = oper.copy()
-				temp_oper[name] = Function(name)
-				temp_oper[name].locked = True
-				temp = evaluate(value, temp_oper, level + 1)
-				if callable(temp) and temp != temp_oper[name]:
-					temp_oper[name].locked = False
-					temp_oper[name].func = temp.func
-					temp_oper[name].n_args = temp.n_args
-					oper[name] = temp_oper[name]
-					return
-			oper[name] = evaluate(value, oper, level + 1)
-			return
-
-		if primary == 'fun':
-			# return function 
-			_, arg_names, *defines, exp = statement
-			n_args = len(arg_names)
-			static_oper = oper.copy() # copy oper for static var
-			for define in defines:
-				# define static local var in copied oper
-				evaluate(define, static_oper, level + 1)
-
-			def _func(*args):
-				# copy static oper to add args in it
-				func_oper = static_oper.copy() 
-				for arg_name, arg in zip(arg_names, args):
-					func_oper[arg_name] = evaluate(arg, oper, level + 1)
-				return evaluate(exp, func_oper, level + 1)
-			return Function(func=_func, n_args=f'== {n_args}')
 
 		if primary == 'if':
 			_, cond, true, false = statement
-			if evaluate(cond, oper, level + 1):
-				return evaluate(true, oper, level + 1)
+			if evalu(cond, oper, level + 1):
+				return evalu(true, oper, level + 1)
 			else:
-				return evaluate(false, oper, level + 1)
-		
+				return evalu(false, oper, level + 1)
 
+		if primary == 'fun':
+			# return func 
+			_, arg_names, *defines, exp = statement
+			n_args = len(arg_names)
+			static_oper = oper.copy() 
+			for define in defines:
+				evalu(define, static_oper, level + 1)
+
+			def _func(*args):
+				func_oper = static_oper.copy() 
+				for arg_name, arg in zip(arg_names, args):
+					func_oper[arg_name] = evalu(arg, oper, level + 1)
+				return evalu(exp, func_oper, level + 1)
+			return Function(func=_func, n_args=f'== {n_args}')
+
+		if primary == 'define':
+			# define a var in oper
+			_, name, value = statement
+			if type(value) is tuple:
+				tmp= oper.copy()
+				tmp[name] = Function(name)
+				tmp[name].locked = True
+				temp = evalu(value, tmp, level + 1)
+				if callable(temp) and temp != tmp[name]:
+					tmp[name].locked = False
+					tmp[name].func = temp.func
+					tmp[name].n_args = temp.n_args
+					oper[name] = tmp[name]
+					return
+			oper[name] = evalu(value, oper, level + 1)
+			return
+
+		# check is func
 		if isinstance(primary, tuple):
-			# eval the primary to see if it's a function
-			primary = evaluate(primary, oper, level + 1)
-			#assert type(primary) == Function, (
-			#	f'expect a function but got {type(primary).__name__}')
+			primary = evalu(primary, oper, level + 1)
 			statement = (primary, *statement[1:])
-			return evaluate(statement, oper, level)
+			return evalu(statement, oper, level)
 
 		func = None
 
@@ -119,13 +102,11 @@ def evaluate(statement, oper, level = 0):
 			func = oper[func_name]
 		
 		if func is not None:
-			args = [evaluate(arg, oper, level + 1) for arg in args]
+			args = [evalu(arg, oper, level + 1) for arg in args]
 			value = func(*args)
 			return value
 		
 
-		#assert not isID(primary), f'undefined function: {primary}'
-		#assert False, f'invalid function name: {primary}'
 
 	else:
 		if callable(statement):
@@ -154,50 +135,83 @@ def initOper():
 	# init oper for the definition
 	def _add(*args):
 		return sum(args)
+	
+	def _sub(*args):
+		x = args[0]
+		for i in args[1:]:
+			x -= i
+		return x
 
 	def _mul(*args):
 		n = 1
 		for i in args:
 			n *= i
 		return n
-	def _sub(*args):
-		x = args[0]
-		for i in args[1:]:
-			x -= i
-		return x
+
 	def _div(*args):
 		x = args[0]
 		for i in args[1:]:
 			x /= i
 		return int(x)
+	
+	def _mod(*args):
+		x = args[0]
+		for i in args[1:]:
+			x %= i
+		return x
+	
 	def _equ(*args):
 		for n in args[1:]:
 			if args[0] != n:
 				return False
 		return True
-	
+
 	def _and(*args):
 		return all(args)
 	
 	def _or(*args):
 		return any(args)
-	
+
+	def _not(arg):
+		return(not arg)
+
+	def _pn(*args):
+		print(args[0])
+
+	def _pb(arg):
+		if arg == True:
+			print("#t")
+		elif arg == False:
+			print("#f")
+
 	return {
 		'+':			Function('+', _add,						int, '>= 2'),
 		'-':			Function('-', _sub,						int, '>= 2'),
 		'*':			Function('*', _mul,						int, '>= 2'),
 		'/':			Function('/', _div,						int, '>= 2'),
-		'mod':		  	Function('mod', lambda x, y: x % y,		int, '== 2'),
+		'mod':		  	Function('mod', _mod,					int, '>= 2'),
 		'=':			Function('=', _equ,					 'same', '>= 2'),
 		'>':			Function('>', lambda x, y: x > y,		int, '== 2'),
 		'<':			Function('<', lambda x, y: x < y,		int, '== 2'),
 		'and':		    Function('and', _and,					    bool, '>= 2'),
 		'or':		    Function('or', _or,					        bool, '>= 2'),
-		'not':		    Function('not', lambda x: not x,			bool, '== 1'),
-		'print-num':	Function('print-num',   lambda x: print(x),  int, '== 1'),
-		'print-bool':   Function('print-bool', lambda x: print({True: '#t', False: '#f'}[x]), bool, '== 1')
+		'not':		    Function('not', _not,						bool, '== 1'),
+		'print-num':	Function('print-num', _pn   ,  				int, '== 1'),
+		'print-bool':   Function('print-bool', _pb, 				bool, '== 1')
 	}
-
+	
+def parseTree(code):
+	# split tokens to recurrence
+	tokens = code.replace('(', ' ( ').replace(')', ' ) ').split()
+	tree_token = []
+	for token in tokens:
+		if token not in ['(', ')']:
+			tree_token.append(f'"{token}"')
+		else:
+			tree_token.append(token)
+		if token != '(':
+			tree_token.append(',')
+	return eval(''.join(['(', *tree_token, ')']))
 
 def run(code, oper=initOper()):
 	try:
@@ -207,27 +221,22 @@ def run(code, oper=initOper()):
 		return
 	for statement in statements:		# do the recurrence
 		try:
-			retval = evaluate(statement, oper)
+			retval = evalu(statement, oper)
 			#if retval != None:	
 				#print( "retval", retval)
 		except :
 				print('invalid syntax')
 
 
+
 if __name__ == '__main__':
-	import sys, os, readline
 
-	if len(sys.argv) > 1 and os.path.isfile(sys.argv[1]):
-		run(open(sys.argv[1]).read())
-
-	else:
-		x = ""
-		while True:
-			try:
-				x += input()
-				#print("x = ", x)
-			except:
-				break
-		#print(x)
-		run(x)
+	x = ""
+	while True:
+		try:
+			x += input()
+		except:
+			break
+	#print(x)
+	run(x)
 		

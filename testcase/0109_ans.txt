@@ -1,0 +1,57 @@
+ test input  01_1_hidden.lsp
+invalid syntax
+ test input  01_2_hidden.lsp
+invalid syntax
+ test input  02_1_hidden.lsp
+4
+8
+9
+15
+ test input  02_2_hidden.lsp
+133
+456
+-769
+ test input  03_1_hidden.lsp
+67
+3
+0
+-520
+ test input  03_2_hidden.lsp
+3
+0
+6
+ test input  04_1_hidden.lsp
+#f
+#t
+#t
+#t
+#t
+#f
+#t
+#f
+ test input  04_2_hidden.lsp
+#t
+#f
+#f
+ test input  05_1_hidden.lsp
+2
+1
+ test input  05_2_hidden.lsp
+30240
+2
+ test input  06_1_hidden.lsp
+8
+1
+ test input  06_2_hidden.lsp
+6
+ test input  07_1_hidden.lsp
+2
+6
+ test input  07_2_hidden.lsp
+0
+10
+20
+ test input  08_1_hidden.lsp
+20
+ test input  08_2_hidden.lsp
+6
